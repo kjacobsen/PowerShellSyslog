@@ -233,8 +233,18 @@ Function Send-SyslogMessage
     {
         Write-Debug -Message 'Starting the BEGIN block...'
 
-        # Create an ASCII Encoding object
-        $EncodingText = [Text.Encoding]::$Encoding
+        # Create an Encoding object
+        Switch ($Encoding)
+        {
+            'ASCII' {
+                Write-Verbose -Message 'Selected Encoding is ASCII'
+                $EncodingText = [System.Text.Encoding]::ASCII
+            }
+            'UTF8'  {
+                Write-Verbose -Message 'Selected Encoding is UTF8'
+                $EncodingText = [System.Text.Encoding]::UTF8
+            }
+        }
 
         # Initiate the required network objects
         Switch ($Transport)

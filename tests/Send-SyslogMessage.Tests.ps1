@@ -47,15 +47,17 @@ InModuleScope $script:ModuleName {
         }
         Mock -ModuleName Posh-SYSLOG -CommandName Send-TCPMessage -MockWith {
             $script:TestResult = $Datagram; return $null
+            $script:TestEncoding = $Encoding
         }
         Mock -ModuleName Posh-SYSLOG -CommandName Send-UDPMessage -MockWith {
             $script:TestResult = $Datagram; return $null
+            $script:TestEncoding = $Encoding
         }
 
         $ExpectedTimeStamp = (New-Object datetime(2000,1,1)).ToString('yyyy-MM-ddTHH:mm:ss.ffffffzzz')
 
         # Create an ASCII Encoding object
-        $Encoding = [Text.Encoding]::ASCII
+        $EncodingText = [Text.Encoding]::ASCII
 
         Context 'Send-SyslogMessage = Parameter Validation' {
             It 'Should not accept a null value for the server' {
@@ -222,6 +224,22 @@ InModuleScope $script:ModuleName {
                 {Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth' -Transport 'bob'} | Should Throw
             }
 
+            It 'Should Accept ASCII as a Encoding' {
+                {Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth' -Encoding 'ASCII'} | Should Not Throw 'Cannot validate argument on parameter'
+            }
+
+            It 'Should Accept UTF8 as a Encoding' {
+                {Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth' -Encoding 'UTF8'} | Should Not Throw 'Cannot validate argument on parameter'
+            }
+
+            It 'Should not accept a null value for Encoding' {
+                {Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth' -Encoding $null} | Should Throw
+            }
+
+            It 'Should not accept an invalid value for Encoding' {
+                {Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth' -Encoding 'encoding'} | Should Throw
+            }
+
             It 'Should reject ProcessID parameter if -RFC3164 is specified' {
                 {Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth' -RFC3164 -ProcessID 1} | Should Throw 'Parameter set cannot be resolved using the specified named parameters'
             }
@@ -251,7 +269,6 @@ InModuleScope $script:ModuleName {
                     {Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth' -Transport 'TCPwithTLS' -SslProtocols $value} | Should Not Throw
                 }
             }
-
         }
 
         Context 'Send-SyslogMessage = Pipeline input' {
@@ -270,7 +287,7 @@ InModuleScope $script:ModuleName {
                 }
                 $ExpectedResult = '<0>1 {0} TestHostname RandomAppName 12345678 messageid structuredata Test Syslog Message' -f $ExpectedTimeStamp
                 $null =  $PipelineInput | Send-SyslogMessage -Server 'localhost'
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
             }
 
             It 'Should accept valid input from the pipeline for RFC3164' {
@@ -284,7 +301,7 @@ InModuleScope $script:ModuleName {
                 }
                 $ExpectedResult = '<0>Jan  1 00:00:00 TestHostname RandomAppName Test Syslog Message'
                 $null =  $PipelineInput | Send-SyslogMessage -Server 'localhost' -RFC3164
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
             }
         }
 
@@ -294,25 +311,25 @@ InModuleScope $script:ModuleName {
             It 'Calculates the correct priority of 0 if Facility is Kern and Severity is Emergency' {
                 $ExpectedResult = '<0>1 {0} TestHostname Send-SyslogMessage.Tests.ps1 {1} - - Test Syslog Message' -f $ExpectedTimeStamp, $PID
                 $null =  Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Emergency' -Facility 'kern'
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
             }
 
             It 'Calculates the correct priority of 7 if Facility is Kern and Severity is Debug' {
                 $ExpectedResult = '<7>1 {0} TestHostname Send-SyslogMessage.Tests.ps1 {1} - - Test Syslog Message' -f $ExpectedTimeStamp, $PID
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Debug' -Facility 'kern'
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
             }
 
             It 'Calculates the correct priority of 24 if Facility is daemon and Severity is Emergency' {
                 $ExpectedResult = '<24>1 {0} TestHostname Send-SyslogMessage.Tests.ps1 {1} - - Test Syslog Message' -f $ExpectedTimeStamp, $PID
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Emergency' -Facility 'daemon'
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
             }
 
             It 'Calculates the correct priority of 31 if Facility is daemon and Severity is Debug' {
                 $ExpectedResult = '<31>1 {0} TestHostname Send-SyslogMessage.Tests.ps1 {1} - - Test Syslog Message' -f $ExpectedTimeStamp, $PID
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Debug' -Facility 'daemon'
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
             }
         }
 
@@ -324,7 +341,7 @@ InModuleScope $script:ModuleName {
 
                 $ExpectedResult = '<33>Jan 10 00:00:00 TestHostname Send-SyslogMessage.Tests.ps1 Test Syslog Message'
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth' -RFC3164
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
             }
 
             It 'Should send RFC5424 formatted message with correct date format (1 to 9)' {
@@ -332,7 +349,7 @@ InModuleScope $script:ModuleName {
 
                 $ExpectedResult = '<33>Jan  1 00:00:00 TestHostname Send-SyslogMessage.Tests.ps1 Test Syslog Message'
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth' -RFC3164
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
             }
         }
 
@@ -342,7 +359,7 @@ InModuleScope $script:ModuleName {
             It 'Should send RFC5424 formatted message' {
                 $ExpectedResult = '<33>1 {0} TestHostname Send-SyslogMessage.Tests.ps1 {1} - - Test Syslog Message' -f $ExpectedTimeStamp, $PID
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth'
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
             }
         }
 
@@ -354,12 +371,12 @@ InModuleScope $script:ModuleName {
             It 'truncates RFC 5424 messages to 2k' {
                 $ExpectedResult = ('<33>1 {0} TestHostname Send-SyslogMessage.Tests.ps1 {1} - - {2}' -f $ExpectedTimeStamp, $PID, $LongMsg).Substring(0,2048)
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message $LongMsg -Severity 'Alert' -Facility 'auth'
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
             }
             It 'truncates RFC 3164 messages to 1k' {
                 $ExpectedResult = ('<33>Jan  1 00:00:00 TestHostname Send-SyslogMessage.Tests.ps1 {1}' -f $ExpectedTimeStamp, $LongMsg).Substring(0,1024)
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message $LongMsg -Severity 'Alert' -Facility 'auth' -RFC3164
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
             }
         }
 
@@ -372,14 +389,14 @@ InModuleScope $script:ModuleName {
                 $FramedResult = '2048 {0}' -f $ExpectedResult
 
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message $LongMsg -Severity 'Alert' -Facility 'auth' -Transport TCP
-                $Encoding.GetString($script:TestResult) | should be $FramedResult
+                $EncodingText.GetString($script:TestResult) | should be $FramedResult
             }
             It 'truncates RFC 3164 messages to 1k' {
                 $ExpectedResult = ('<33>Jan  1 00:00:00 TestHostname Send-SyslogMessage.Tests.ps1 {1}' -f $ExpectedTimeStamp, $LongMsg).Substring(0,1024)
                 $FramedResult = '1024 {0}' -f $ExpectedResult
 
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message $LongMsg -Severity 'Alert' -Facility 'auth' -RFC3164 -Transport TCP
-                $Encoding.GetString($script:TestResult) | should be $FramedResult
+                $EncodingText.GetString($script:TestResult) | should be $FramedResult
             }
         }
 
@@ -391,7 +408,7 @@ InModuleScope $script:ModuleName {
                 $FramedResult = '{0} {1}' -f $ExpectedResult.Length, $ExpectedResult
 
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth' -Hostname TestHostname -Transport TCP
-                $Encoding.GetString($script:TestResult) | should be $FramedResult
+                $EncodingText.GetString($script:TestResult) | should be $FramedResult
             }
 
             It 'sends using TCP transport with Octet-Counting as the framing' {
@@ -399,20 +416,36 @@ InModuleScope $script:ModuleName {
                 $FramedResult = '{0} {1}' -f $ExpectedResult.Length, $ExpectedResult
 
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth' -Hostname TestHostname -Transport TCP -FramingMethod Octet-Counting
-                $Encoding.GetString($script:TestResult) | should be $FramedResult
+                $EncodingText.GetString($script:TestResult) | should be $FramedResult
             }
             It 'sends using TCP transport with Non-Transparent-Framing as the framing' {
                 $ExpectedResult = '<33>1 {0} TestHostname Send-SyslogMessage.Tests.ps1 {1} - - Test Syslog Message{2}' -f $ExpectedTimeStamp, $PID, "`n"
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth' -Hostname TestHostname -Transport TCP -FramingMethod Non-Transparent-Framing
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
             }
 
             It 'sends using TCP transport with no framing' {
                 $ExpectedResult = '<33>1 {0} TestHostname Send-SyslogMessage.Tests.ps1 {1} - - Test Syslog Message' -f $ExpectedTimeStamp, $PID
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth' -Hostname TestHostname -Transport TCP -FramingMethod None
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
+            }
+        }
+
+        Context 'Send-SyslogMessage = Encoding Tests' {
+
+            It 'Correctly encodes non-ASCII characters with UTF8' {
+                $message = 'Test Syslog Message with non-ASCII characters: áéíóú'
+                $null = Send-SyslogMessage -Server '127.0.0.1' -Message $message -Severity 'Alert' -Facility 'auth' -Encoding 'UTF8'
+                $decodedMessage = [System.Text.Encoding]::UTF8.GetString($script:TestResult)
+                $decodedMessage | Should BeLike '*áéíóú*'
             }
 
+            It 'Handles ASCII encoding for non-ASCII characters' {
+                $message = 'Test Syslog Message with non-ASCII characters: áéíóú'
+                $null = Send-SyslogMessage -Server '127.0.0.1' -Message $message -Severity 'Alert' -Facility 'auth' -Encoding 'ASCII'
+                $decodedMessage = [System.Text.Encoding]::ASCII.GetString($script:TestResult)
+                $decodedMessage | Should Not BeLike '*áéíóú*'
+            }
         }
 
         Context 'Send-SyslogMessage = Application Name Selection' {
@@ -421,13 +454,13 @@ InModuleScope $script:ModuleName {
             It 'Takes an Application Name as specified' {
                 $ExpectedResult = '<33>1 {0} TestHostname SomeRandomName {1} - - Test Syslog Message' -f $ExpectedTimeStamp, $PID
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth' -ApplicationName 'SomeRandomName'
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
             }
 
             It 'uses myInvocation.ScriptName if one is available' {
                 $ExpectedResult = '<33>1 {0} TestHostname Send-SyslogMessage.Tests.ps1 {1} - - Test Syslog Message' -f $ExpectedTimeStamp, $PID
                 $null = Send-SyslogMessage -Server '127.0.0.1' -Message 'Test Syslog Message' -Severity 'Alert' -Facility 'auth'
-                $Encoding.GetString($script:TestResult) | should be $ExpectedResult
+                $EncodingText.GetString($script:TestResult) | should be $ExpectedResult
             }
         }
 
@@ -440,5 +473,4 @@ InModuleScope $script:ModuleName {
             }
         }
     }
-
 }
