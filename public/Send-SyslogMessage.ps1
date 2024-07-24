@@ -51,6 +51,14 @@ public enum Syslog_Protocol
 }
 "@
 
+Add-Type -TypeDefinition @"
+public enum Syslog_Encoding
+{
+    ASCII,
+    UTF8
+}
+"@
+
 Function Send-SyslogMessage
 {
     <#
@@ -161,6 +169,13 @@ Function Send-SyslogMessage
         [Syslog_Protocol]
         $Transport = 'UDP',
 
+        # Encoding charset (ASCII or UTF8) to be used when sending the message. Default is ASCII.
+        [Parameter(Mandatory                        = $false,
+                   ValueFromPipelineByPropertyName  = $true)]
+        [ValidateNotNullOrEmpty()]
+        [Syslog_Encoding]
+        $Encoding = 'ASCII',
+
         #ProcessID or PID of generator of message. Will automatically use $PID global variable. If you want to override this and send null, specify '-' to meet RFC 5424 rquirements.
         [Parameter(Mandatory                        = $false,
                    ValueFromPipelineByPropertyName  = $true,
@@ -218,8 +233,18 @@ Function Send-SyslogMessage
     {
         Write-Debug -Message 'Starting the BEGIN block...'
 
-        # Create an ASCII Encoding object
-        $Encoding = [Text.Encoding]::ASCII
+        # Create an Encoding object
+        Switch ($Encoding)
+        {
+            'ASCII' {
+                Write-Verbose -Message 'Selected Encoding is ASCII'
+                $EncodingText = [System.Text.Encoding]::ASCII
+            }
+            'UTF8'  {
+                Write-Verbose -Message 'Selected Encoding is UTF8'
+                $EncodingText = [System.Text.Encoding]::UTF8
+            }
+        }
 
         # Initiate the required network objects
         Switch ($Transport)
@@ -365,7 +390,7 @@ Function Send-SyslogMessage
         Write-Verbose -Message ('Message attempting to send is: {0}' -f $FullSyslogMessage)
 
         # Ensure that the message is not too long. We could just compare the strings length, however using the encoding is the more appropriate way of confirming the length in bytes.
-        if ($Encoding.GetByteCount($FullSyslogMessage) -gt $MaxLength)
+        if ($EncodingText.GetByteCount($FullSyslogMessage) -gt $MaxLength)
         {
             $FullSyslogMessage = $FullSyslogMessage.Substring(0,$MaxLength)
             Write-Verbose -Message ('Message was too long and was shortened to {0} characters' -f $MaxLength)
@@ -377,7 +402,7 @@ Function Send-SyslogMessage
             'UDP'
             {
                 # Convert into byte array representation
-                $ByteSyslogMessage = $Encoding.GetBytes($FullSyslogMessage)
+                $ByteSyslogMessage = $EncodingText.GetBytes($FullSyslogMessage)
 
                 # Send the Message
                 Try
@@ -402,7 +427,7 @@ Function Send-SyslogMessage
                 {
                     'Octet-Counting'
                     {
-                        $OctetCount = ($Encoding.GetBytes($FullSyslogMessage)).Length
+                        $OctetCount = ($EncodingText.GetBytes($FullSyslogMessage)).Length
                         $FramedSyslogMessage = '{0} {1}' -f $OctetCount, $FullSyslogMessage
                         Write-Verbose -Message ('Octet-Counting - Framed message is: {0}' -f $FullSyslogMessage)
                     }
@@ -421,7 +446,7 @@ Function Send-SyslogMessage
                 }
 
                 # Convert into byte array representation
-                $ByteSyslogMessage = $Encoding.GetBytes($FramedSyslogMessage)
+                $ByteSyslogMessage = $EncodingText.GetBytes($FramedSyslogMessage)
 
                 # Send the Message
                 Try
